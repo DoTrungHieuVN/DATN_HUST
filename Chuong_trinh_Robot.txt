@@ -1,0 +1,203 @@
+MODULE Module2
+    !Home
+    CONST robtarget pHome:=[[313.25,413.23,479.75],[0.00239886,-0.709351,0.704851,0.000267329],[0,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    !P2
+    CONST robtarget pP2_Wait:=[[64.98,130.28,291.94],[2.26368E-06,-0.697475,0.716609,1.62057E-06],[-1,-1,-2,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget pP2_Appr:=[[71.45,215.79,430.85],[5.03224E-07,-0.697476,0.716608,1.45627E-06],[-1,-1,-2,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget pP2_BaseCam:=[[184.47,-50.98,100.00],[2.00616E-08,0.0143331,0.999897,6.49408E-07],[-1,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    !P3
+    CONST robtarget pP3_Appr:=[[324.48,414.16,380.16],[0.00239688,-0.709351,0.704851,0.000270749],[0,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    !P4
+    CONST robtarget pP4_Appr:=[[243.85,608.20,380.29],[0.000106544,0.932735,-0.360562,-9.35566E-05],[0,-1,-2,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    !P6
+    CONST robtarget pP6_Appr:=[[-46.36,659.96,380.16],[0.0120021,-0.93852,-0.344994,0.0040024],[1,0,-2,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget pP6_Wait:=[[-45.95,674.56,334.61],[0.154574,-0.987764,0.0206556,-0.00119246],[1,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget pP6_Work_1:=[[-193.94,204.42,0.51],[3.32083E-05,0.707044,-0.707169,3.78871E-05],[1,-1,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget pP6_Work_2:=[[-313.94,204.42,0.51],[3.32083E-05,0.707044,-0.707169,3.78871E-05],[1,-1,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    
+    VAR num Nx;
+    VAR num Ny;
+    VAR num mv:=4;
+    VAR num nv:=2;
+    VAR num mt:=4;
+    VAR num nt:=2;
+    VAR num kc:=60;
+    VAR num av:=60;
+    VAR num bv:=60;
+    VAR num at:=60;
+    VAR num bt:=60;
+    VAR num iv;
+    VAR num jv;
+    VAR num it;
+    VAR num jt;
+    VAR socketdev server1;
+    VAR socketdev client1;
+    VAR num XOffs;
+    VAR num YOffs;
+    VAR num AngleOffs;
+    VAR num X_dis;
+    VAR num Y_dis;
+    VAR string data;
+    VAR num process:=1;
+    VAR num k;
+    VAR num shape;
+    VAR bool ok;
+    VAR num r:=0.63920538;
+    CONST string send{6}:=["Gui X","Gui Y","Gui Goc","Gui shape","Gui X_dis","Gui Y_dis"];
+    VAR num values{6};
+    VAR robtarget pP2_Current1;
+    VAR robtarget pP2_Current2;
+
+    PROC Pro_Thao()
+        IF process=1 THEN
+            SocketCreate server1;
+            SocketBind server1,"192.168.125.1",1025;
+            SocketListen server1;
+            SocketAccept server1,client1;
+            process:=process+1;
+        ENDIF
+        
+        WHILE di00_SystemReady=1 DO
+            WHILE di02_RB_Stop=0 DO
+                lamp_control("stop");
+                WaitDI di01_RB_Start,1;
+                lamp_control("run");
+                set do00_Pneumatic;
+                ! Mo kep
+                Set do08_ValveGripper;
+                WaitDI di07_GripperOff,1;
+                MoveJ pHome,v600,z20,tGripper\WObj:=wobj1_Station;
+                iv:=0;
+                jv:=0;
+                it:=0;
+                jt:=0;
+                WHILE Nx<=8 or Ny<=8 DO
+                    ! Gui du lieu
+                    FOR k FROM 1 TO 6 DO
+                        data:="";
+                        SocketSend client1,\Str:=send{k};
+                        SocketReceive client1,\Str:=data;
+                        ok:=StrToVal(data,values{k});
+                    ENDFOR
+                    XOffs:=values{1};
+                    YOffs:=values{2};
+                    AngleOffs:=values{3};
+                    shape:=values{4};
+                    X_dis := values{5};
+                    Y_dis := values{6};
+                    
+                    MoveJ pP2_Appr,v600,z20,tGripper\WObj:=wobj1_Station;
+                    MoveJ pP2_Wait,v600,z20,tGripper\WObj:=wobj1_Station;
+
+                    ! Xoay tool
+                    MoveJ offs(pP2_BaseCam,-X_dis*r,Y_dis*r,0),v400,z20,tGripper\WObj:=wobj1_Station;
+                    MoveL RelTool(offs(pP2_BaseCam,-X_dis*r,Y_dis*r,0),0,0,0\Rz:=AngleOffs),v100,fine,tGripper\WObj:=wobj1_Station;
+                    pP2_Current1:=CRobT(\Tool:=tGripper\WObj:=wobj1_Station);
+                    MoveL RelTool(pP2_Current1,0,0,65),v80,fine,tGripper\WObj:=wobj1_Station;
+                    pP2_Current2:=CRobT(\Tool:=tGripper\WObj:=wobj1_Station);
+                    MoveL Offs(pP2_Current2,-(XOffs - X_dis)*r,(YOffs - Y_dis)*r,0),v80,fine,tGripper\WObj:=wobj1_Station;
+
+                    ! Kep phoi
+                    WaitTime 0.5;
+                    Reset do08_ValveGripper;
+                    waitdi di06_GripperOn,1;
+                    MoveL offs(pP2_BaseCam,-XOffs*r,YOffs*r,-30),v100,fine,tGripper\WObj:=wobj1_Station;
+                    MoveJ pP2_Wait,v400,z20,tGripper\WObj:=wobj1_Station;
+                    MoveJ pP2_Appr,v800,z20,tGripper\WObj:=wobj1_Station;
+                    MoveJ pP3_Appr,v1000,z80,tGripper\WObj:=wobj1_Station;
+                    MoveJ pP4_Appr,v1000,z50,tGripper\WObj:=wobj1_Station;
+                    
+                    ! Dat vat vao PartTray tai P6
+                    MoveJ pP6_Appr,v1000,z50,tGripper\WObj:=wobj1_Station;
+                    MoveJ pP6_Wait,v800,fine,tGripper\WObj:=wobj1_Station;
+                    ! Kiem tra hinh dang phoi
+                    IF shape=1 THEN
+                        ! Phoi lap phuong
+                        ! Dat vao o thu x
+                        IF jv<nv THEN
+                            IF iv<mv THEN
+                                MoveJ Offs(pP6_Work_1,-jv*60,-iv*60,80),v300,z30,tGripper\WObj:=wobj2_PartTray;
+                                MoveL offs (pP6_Work_1,-jv*60,-iv*60,0),v100,fine,tGripper\WObj:=wobj2_PartTray;
+                                WaitTime 0.5;
+                                Set do08_ValveGripper;
+                                WaitDI di07_GripperOff,1;
+                                MoveL Offs(pP6_Work_1,-jv*60,-iv*60,0),v100,fine,tGripper\WObj:=wobj2_PartTray;
+                                SocketSend client1,\Str:="1";
+                                Nx:= jv*mv + iv +1;
+                                iv:=iv+1;
+                            ELSE iv:=0; jv:=jv+1;
+                            ENDIF
+                        ENDIF
+                    ELSEIF shape=0 THEN
+                        ! Phoi tru
+                        ! Dat vao o thu y
+                        IF jt<nt THEN
+                            IF it<mt THEN
+                                MoveJ Offs(pP6_Work_2,-jt*60,-it*60,80),v300,z30,tGripper\WObj:=wobj2_PartTray;
+                                MoveL offs(pP6_Work_2,-jt*60,-it*60,80),v100,fine,tGripper\WObj:=wobj2_PartTray;
+                                WaitTime 0.5;
+                                Set do08_ValveGripper;
+                                WaitDI di07_GripperOff,1;
+                                MoveL Offs(pP6_Work_2,-jt*60,-it*60,80),v100,fine,tGripper\WObj:=wobj2_PartTray;
+                                SocketSend client1,\Str:="0";
+                                Ny:= jt*mt + it +1;
+                                it := it +1;
+                            ELSE it:=0; jt:=jt+1;
+                            ENDIF 
+                        ENDIF
+                    ENDIF
+                    MoveL pP6_Wait,v400,fine,tGripper\WObj:=wobj1_Station;
+                    MoveJ pP6_Appr,v800,z50,tGripper\WObj:=wobj1_Station;
+                    MoveJ pP4_Appr,v1000,z50,tGripper\WObj:=wobj1_Station;
+                    MoveJ pP3_Appr,v1000,z50,tGripper\WObj:=wobj1_Station;
+                ENDWHILE
+                lamp_control("stop");
+                waitdi di03_RB_Reset,1;
+                reset_all;
+                lamp_control("reset");
+            ENDWHILE
+        ENDWHILE
+    ENDPROC
+    
+    PROC lamp_control(string lamp_ctr)
+        IF lamp_ctr="run" THEN
+            set do01_GreenLamp;
+            set do06_TowerGreenLamp;
+            reset do02_RedLamp;
+            reset do04_TowerRedLamp;
+            reset do03_YellowLamp;
+            reset do05_TowerYellowLamp;
+            reset do07_TowerBuzzer;
+        ELSEIF lamp_ctr="stop" THEN
+            reset do01_GreenLamp;
+            reset do06_TowerGreenLamp;
+            set do02_RedLamp;
+            set do04_TowerRedLamp;
+            reset do03_YellowLamp;
+            reset do05_TowerYellowLamp;
+            reset do07_TowerBuzzer;
+        ELSEIF lamp_ctr="error" THEN
+            reset do01_GreenLamp;
+            reset do06_TowerGreenLamp;
+            reset do02_RedLamp;
+            reset do04_TowerRedLamp;
+            set do03_YellowLamp;
+            set do05_TowerYellowLamp;
+            set do07_TowerBuzzer;
+        ENDIF
+    ENDPROC
+    
+    PROC reset_all()
+        reset do01_GreenLamp;
+        reset do06_TowerGreenLamp;
+        reset do02_RedLamp;
+        reset do04_TowerRedLamp;
+        set do05_TowerYellowLamp;
+        set do03_YellowLamp;
+        reset do07_TowerBuzzer;
+        set do08_ValveGripper;
+        reset do09_MotorFoward;
+        reset do10_MotorReverse;
+        reset do11_ValveHolding;
+    ENDPROC
+ENDMODULE
